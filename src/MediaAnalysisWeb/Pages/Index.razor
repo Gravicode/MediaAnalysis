@@ -1,0 +1,110 @@
+﻿@page "/"
+@using System.Text
+@using GoogleCSE
+@inject IJSRuntime JS
+
+<PageTitle>Media Analysis</PageTitle>
+
+<h3>Media Analysis</h3>
+
+<div class="mb-2">
+    <div class="form-group">
+        <label for="keyword">Keyword</label>
+        <input type="text" @bind="keyword" class="form-control" id="exampleInputEmail1" aria-describedby="keywordhelp" placeholder="Enter keyword">
+        <small id="keywordhelp" class="form-text text-muted">type your search keyword here.</small>
+    </div>
+    <button type="button" @onclick="GoSearch" class="btn btn-primary">Go</button>
+</div>
+
+
+@if (result!=null)
+{
+     <table class="table table-bordered table-hover" id="grid">
+        <thead>
+        <tr>
+            <th>No</th>
+            <th>Judul</th>
+            <th>Deskripsi</th>
+            <th>Url</th>
+            <th>Action</th>
+        </tr>
+    </thead>    
+    <tbody>
+        @{
+            var counter = 1;
+        }
+        @foreach(var item in result){
+        <tr>
+            <td>
+                @(counter++)
+            </td>
+            <td>
+                @item.Title
+            </td>
+            <td>
+                @item.Description
+            </td>
+            <td>
+                @item.Url
+            </td>
+            <td>
+                
+                <a @onclick:preventDefault @onclick="(() => NLPProcess(item,NLPOperations.EntityRecognition))" data-toggle="modal" data-target="@("#Dialog1")" class="btn btn-info" >Entity Recognition</a>
+
+            </td>
+        </tr>
+        }
+    </tbody>
+    </table>
+    
+}
+<hr />
+<InfoDialog @ref="dialog1" OnClick="@DialogClick" />
+ 
+@code {
+    InfoDialog dialog1;
+    List<GoogleSearchResult>? result;
+    GoogleSearch engine;
+    public enum NLPOperations { EntityRecognition, Other }
+    string keyword = "omikron";
+    CatalystEngine nlp;
+    protected override async Task OnInitializedAsync()
+    {
+        if(nlp==null)
+            nlp = new CatalystEngine();
+    }
+    private async Task NLPProcess(GoogleSearchResult item, NLPOperations op)
+    {
+        switch (op)
+        {
+            case NLPOperations.EntityRecognition:
+                
+            var body = ContentDownloader.DownloadContentAsString(item.Url);
+                if (!string.IsNullOrEmpty(body))
+                {
+                    dialog1.BodyMessage = await nlp.RecognizeEntities(body);
+                }
+                break;
+            default:
+                break;
+        }
+    }
+    private async Task DialogClick()
+    {
+        await JS.InvokeAsync<object>("CloseModal", dialog1.DialogId);
+    }
+    async Task GoSearch()
+    {
+        if(engine==null)
+        engine = new GoogleSearch(AppConstants.CUSTOM_SEARCH_ID,AppConstants.GOOGLE_SEARCH_API_KEY,"en"); 
+        //basic search
+        result = engine.Search(keyword);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+       if(result!=null)
+                await JS.InvokeVoidAsync("SetDataTable","grid"); 
+    }
+}
+
